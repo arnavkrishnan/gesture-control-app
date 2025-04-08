@@ -71,7 +71,11 @@ while True:
         print("Fingers:", fingers)
 
         # Gesture detection
-        if fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0:
+        if fingers == [0, 0, 0, 0, 0]:
+            gesture = "fist"
+            print("🧠 Detected: Fist gesture")
+            
+        elif fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0:
             gesture = "scroll_up"
             print("🧠 Detected: Scroll Up gesture")
 
@@ -86,10 +90,6 @@ while True:
         elif fingers == [0, 1, 0, 0, 0] and not click_cooldown:
             gesture = "click"
             print("🧠 Detected: Click gesture")
-
-        elif fingers == [0, 0, 0, 0, 0]:
-            gesture = "fist"
-            print("🧠 Detected: Fist gesture")
 
         # Gesture timing logic
         current_time = time.time()
