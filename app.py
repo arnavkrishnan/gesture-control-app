@@ -1,82 +1,156 @@
 import cv2
-import mediapipe as mp
+import time
 import pyautogui
-import math
+import mediapipe as mp
+import numpy as np
 
-# Initialize MediaPipe hands model
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands()
+# Setup
+wCam, hCam = 640, 480
+frameR = 100  # Frame Reduction for cursor control area
+smoothening = 5
 
-# Get screen width and height
-screen_width, screen_height = pyautogui.size()
+# Initialize
+plocX, plocY = 0, 0
+clocX, clocY = 0, 0
 
-# Start webcam
 cap = cv2.VideoCapture(0)
+cap.set(3, wCam)
+cap.set(4, hCam)
 
-# Function to calculate distance between two points
-def calculate_distance(p1, p2):
-    return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+mpHands = mp.solutions.hands
+hands = mpHands.Hands(max_num_hands=1, min_detection_confidence=0.8)
+mpDraw = mp.solutions.drawing_utils
+
+wScr, hScr = pyautogui.size()
+
+gesture_name = None
+gesture_start = None
+click_cooldown = False
+exit_start = None  # Fist hold timer
+
+def fingers_up(hand_landmarks):
+    fingers = []
+
+    # Thumb
+    if hand_landmarks.landmark[mpHands.HandLandmark.THUMB_TIP].x < hand_landmarks.landmark[mpHands.HandLandmark.THUMB_IP].x:
+        fingers.append(1)
+    else:
+        fingers.append(0)
+
+    # Other fingers
+    tips_ids = [mpHands.HandLandmark.INDEX_FINGER_TIP,
+                mpHands.HandLandmark.MIDDLE_FINGER_TIP,
+                mpHands.HandLandmark.RING_FINGER_TIP,
+                mpHands.HandLandmark.PINKY_TIP]
+
+    dip_ids = [mpHands.HandLandmark.INDEX_FINGER_PIP,
+               mpHands.HandLandmark.MIDDLE_FINGER_PIP,
+               mpHands.HandLandmark.RING_FINGER_PIP,
+               mpHands.HandLandmark.PINKY_PIP]
+
+    for tip, pip in zip(tips_ids, dip_ids):
+        if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[pip].y:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+    return fingers
 
 while True:
-    # Read frame from webcam
-    ret, frame = cap.read()
+    success, img = cap.read()
+    img = cv2.flip(img, 1)  # Flip image for mirrored preview
+    imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    results = hands.process(imgRGB)
 
-    if not ret:
-        break
-
-    # Flip the image for a later selfie-view display
-    frame = cv2.flip(frame, 1)
-
-    # Convert to RGB
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-    # Process the frame and detect hands
-    results = hands.process(rgb_frame)
+    gesture = None
 
     if results.multi_hand_landmarks:
-        for landmarks in results.multi_hand_landmarks:
-            # Get the positions of specific landmarks (fingertips, palm center, etc.)
-            thumb_tip = landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
-            index_tip = landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
-            middle_tip = landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
-            ring_tip = landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP]
-            pinky_tip = landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP]
-            wrist = landmarks.landmark[mp_hands.HandLandmark.WRIST]
+        handLms = results.multi_hand_landmarks[0]
+        mpDraw.draw_landmarks(img, handLms, mpHands.HAND_CONNECTIONS)
 
-            # Get hand center (for moving cursor)
-            hand_center_x = int((wrist.x + index_tip.x) * screen_width / 2)
-            hand_center_y = int((wrist.y + index_tip.y) * screen_height / 2)
+        fingers = fingers_up(handLms)
+        print("Fingers:", fingers)
 
-            # Map the hand coordinates to screen coordinates
-            screen_x = int(screen_width * hand_center_x)
-            screen_y = int(screen_height * hand_center_y)
+        # Gesture detection
+        if fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0:
+            gesture = "scroll_up"
+            print("🧠 Detected: Scroll Up gesture")
 
-            # Move the cursor based on the hand center
-            pyautogui.moveTo(screen_x, screen_y)
+        elif fingers[1] == 0 and fingers[2] == 0:
+            gesture = "scroll_down"
+            print("🧠 Detected: Scroll Down gesture")
 
-            # Check for hand gesture: open vs. closed (fist vs. open hand)
-            # Distance between the index and thumb tips to check for fist (closed hand)
-            distance_thumb_index = calculate_distance((thumb_tip.x, thumb_tip.y), (index_tip.x, index_tip.y))
+        elif fingers == [1, 1, 1, 1, 1]:
+            gesture = "move_cursor"
+            print("🧠 Detected: Move Cursor gesture")
 
-            if distance_thumb_index < 0.05:  # Small distance = fist (closed hand)
-                # Scroll down when fist is detected
-                pyautogui.scroll(-10)  # Adjust scroll speed as necessary
-                print("Scrolling down (fist detected)")
+        elif fingers == [0, 1, 0, 0, 0] and not click_cooldown:
+            gesture = "click"
+            print("🧠 Detected: Click gesture")
 
-            elif distance_thumb_index > 0.2:  # Large distance = open hand
-                # Scroll up when open hand is detected
-                pyautogui.scroll(10)  # Adjust scroll speed as necessary
-                print("Scrolling up (open hand detected)")
+        elif fingers == [0, 0, 0, 0, 0]:
+            gesture = "fist"
+            print("🧠 Detected: Fist gesture")
 
-            # Optionally detect clicking based on hand open/close:
-            if distance_thumb_index < 0.05 and len(landmarks) > 0:  # Fist -> Click
-                pyautogui.click()
-                print("Click detected (fist)")
+        # Gesture timing logic
+        current_time = time.time()
+        if gesture == gesture_name:
+            duration = current_time - gesture_start if gesture_start else 0
+        else:
+            gesture_name = gesture
+            gesture_start = current_time
+            duration = 0
 
-    # Show the webcam feed with landmarks drawn on the hand
-    cv2.imshow("Hand Gesture Control", frame)
+        # Execute actions
+        if gesture == "scroll_up":
+            pyautogui.scroll(50)
 
-    if cv2.waitKey(1) & 0xFF == 27:  # Press ESC to quit
+        elif gesture == "scroll_down":
+            pyautogui.scroll(-50)
+
+        elif gesture == "move_cursor":
+            lm = handLms.landmark[mpHands.HandLandmark.INDEX_FINGER_TIP]
+            x = int(lm.x * wCam)
+            y = int(lm.y * hCam)
+
+            # Map to screen
+            x3 = np.interp(x, (frameR, wCam - frameR), (0, wScr))
+            y3 = np.interp(y, (frameR, hCam - frameR), (0, hScr))
+
+            # Smooth movement
+            clocX = plocX + (x3 - plocX) / smoothening
+            clocY = plocY + (y3 - plocY) / smoothening
+
+            # **no more inversion here**
+            pyautogui.moveTo(clocX, clocY)
+            plocX, plocY = clocX, clocY
+
+        elif gesture == "click" and duration > 0.5:
+            pyautogui.click()
+            print("🖱️ Clicked!")
+            click_cooldown = True
+            click_time = time.time()
+
+        elif gesture == "fist":
+            # Fist‐hold exit logic (after 2.5s)
+            if exit_start is None:
+                exit_start = current_time
+            elif current_time - exit_start > 2.5:
+                print("👊 Fist held — Exiting!")
+                break
+        else:
+            exit_start = None  # Reset if no fist detected
+
+    else:
+        gesture = None
+        gesture_name = None
+        gesture_start = None
+
+    # Reset click cooldown
+    if click_cooldown and time.time() - click_time > 1:
+        click_cooldown = False
+
+    cv2.imshow("Gesture Control Overlay", img)
+    if cv2.waitKey(1) == ord('q'):
         break
 
 cap.release()
