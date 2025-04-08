@@ -1,6 +1,6 @@
-import cv2
-import mediapipe as mp
-import pyautogui
+import cv2 # type: ignore
+import mediapipe as mp # type: ignore
+import pyautogui # type: ignore
 
 cap = cv2.VideoCapture(0)
 hand_detector = mp.solutions.hands.Hands()
