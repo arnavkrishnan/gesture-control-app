@@ -1,8 +1,8 @@
-import cv2
+import cv2 # type: ignore
 import time
-import pyautogui
-import mediapipe as mp
-import numpy as np
+import pyautogui # type: ignore
+import mediapipe as mp # type: ignore
+import numpy as np # type: ignore
 import configparser  # Import configparser to read INI files
 
 # Function to load settings from the config file
