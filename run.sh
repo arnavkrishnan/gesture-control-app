@@ -23,5 +23,5 @@ pip install opencv-python mediapipe pyautogui numpy
 # Run the Python script
 python app.py
 
-# Deactivate the Conda environment after execution
+conda init
 conda deactivate
