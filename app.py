@@ -1,13 +1,30 @@
-import cv2 # type: ignore
+import cv2
 import time
-import pyautogui # type: ignore
-import mediapipe as mp # type: ignore
-import numpy as np # type: ignore
+import pyautogui
+import mediapipe as mp
+import numpy as np
+import configparser  # Import configparser to read INI files
+
+# Function to load settings from the config file
+def load_config():
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    
+    # Extract values from the INI file
+    scroll_speed = int(config['settings']['scroll_speed'])
+    mouse_sensitivity = int(config['settings']['mouse_sensitivity'])
+    click_cooldown_duration = float(config['settings']['click_cooldown'])
+    exit_time = float(config['settings']['exit_time'])
+    
+    return scroll_speed, mouse_sensitivity, click_cooldown_duration, exit_time
+
+# Load configuration settings
+scroll_speed, mouse_sensitivity, click_cooldown_duration, exit_time = load_config()
 
 # Setup
 wCam, hCam = 640, 480
 frameR = 100  # Frame Reduction for cursor control area
-smoothening = 5
+smoothening = mouse_sensitivity  # Use sensitivity value from the config
 
 # Initialize
 plocX, plocY = 0, 0
@@ -102,10 +119,10 @@ while True:
 
         # Execute actions
         if gesture == "scroll_up":
-            pyautogui.scroll(50)
+            pyautogui.scroll(scroll_speed)
 
         elif gesture == "scroll_down":
-            pyautogui.scroll(-50)
+            pyautogui.scroll(-scroll_speed)
 
         elif gesture == "move_cursor":
             lm = handLms.landmark[mpHands.HandLandmark.INDEX_FINGER_TIP]
@@ -124,17 +141,17 @@ while True:
             pyautogui.moveTo(clocX, clocY)
             plocX, plocY = clocX, clocY
 
-        elif gesture == "click" and duration > 0.5:
+        elif gesture == "click" and duration > click_cooldown_duration:
             pyautogui.click()
             print("🖱️ Clicked!")
             click_cooldown = True
             click_time = time.time()
 
         elif gesture == "fist":
-            # Fist‐hold exit logic (after 2.5s)
+            # Fist‐hold exit logic (after exit_time seconds)
             if exit_start is None:
                 exit_start = current_time
-            elif current_time - exit_start > 2.5:
+            elif current_time - exit_start > exit_time:
                 print("👊 Fist held — Exiting!")
                 break
         else:
@@ -146,7 +163,7 @@ while True:
         gesture_start = None
 
     # Reset click cooldown
-    if click_cooldown and time.time() - click_time > 1:
+    if click_cooldown and time.time() - click_time > click_cooldown_duration:
         click_cooldown = False
 
     cv2.imshow("Gesture Control Overlay", img)
