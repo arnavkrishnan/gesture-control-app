@@ -34,7 +34,7 @@ The webpage shows a real-time video stream from your webcam with gesture overlay
 ### 1. Clone the Repo
 
 ```bash
-git clone https://github.com/yourusername/gesture-control-app.git
+git clone https://github.com/arnavkrishnan/gesture-control-app.git
 cd gesture-control-app
 ```
 
