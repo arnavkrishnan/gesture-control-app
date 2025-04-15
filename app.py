@@ -5,12 +5,10 @@ import mediapipe as mp # type: ignore
 import numpy as np # type: ignore
 import configparser  # Import configparser to read INI files
 
-# Function to load settings from the config file
 def load_config():
     config = configparser.ConfigParser()
     config.read('config.ini')
     
-    # Extract values from the INI file
     scroll_speed = int(config['settings']['scroll_speed'])
     mouse_sensitivity = int(config['settings']['mouse_sensitivity'])
     click_cooldown_duration = float(config['settings']['click_cooldown'])
@@ -18,15 +16,12 @@ def load_config():
     
     return scroll_speed, mouse_sensitivity, click_cooldown_duration, exit_time
 
-# Load configuration settings
 scroll_speed, mouse_sensitivity, click_cooldown_duration, exit_time = load_config()
 
-# Setup
 wCam, hCam = 640, 480
-frameR = 100  # Frame Reduction for cursor control area
-smoothening = mouse_sensitivity  # Use sensitivity value from the config
+frameR = 100
+smoothening = mouse_sensitivity
 
-# Initialize
 plocX, plocY = 0, 0
 clocX, clocY = 0, 0
 
@@ -43,18 +38,16 @@ wScr, hScr = pyautogui.size()
 gesture_name = None
 gesture_start = None
 click_cooldown = False
-exit_start = None  # Fist hold timer
+exit_start = None
 
 def fingers_up(hand_landmarks):
     fingers = []
 
-    # Thumb
     if hand_landmarks.landmark[mpHands.HandLandmark.THUMB_TIP].x < hand_landmarks.landmark[mpHands.HandLandmark.THUMB_IP].x:
         fingers.append(1)
     else:
         fingers.append(0)
 
-    # Other fingers
     tips_ids = [mpHands.HandLandmark.INDEX_FINGER_TIP,
                 mpHands.HandLandmark.MIDDLE_FINGER_TIP,
                 mpHands.HandLandmark.RING_FINGER_TIP,
@@ -74,7 +67,7 @@ def fingers_up(hand_landmarks):
 
 while True:
     success, img = cap.read()
-    img = cv2.flip(img, 1)  # Flip image for mirrored preview
+    img = cv2.flip(img, 1)
     imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     results = hands.process(imgRGB)
 
@@ -87,7 +80,6 @@ while True:
         fingers = fingers_up(handLms)
         print("Fingers:", fingers)
 
-        # Gesture detection
         if fingers == [0, 0, 0, 0, 0]:
             gesture = "fist"
             print("🧠 Detected: Fist gesture")
@@ -108,7 +100,6 @@ while True:
             gesture = "click"
             print("🧠 Detected: Click gesture")
 
-        # Gesture timing logic
         current_time = time.time()
         if gesture == gesture_name:
             duration = current_time - gesture_start if gesture_start else 0
@@ -117,7 +108,6 @@ while True:
             gesture_start = current_time
             duration = 0
 
-        # Execute actions
         if gesture == "scroll_up":
             pyautogui.scroll(scroll_speed)
 
@@ -129,15 +119,12 @@ while True:
             x = int(lm.x * wCam)
             y = int(lm.y * hCam)
 
-            # Map to screen
             x3 = np.interp(x, (frameR, wCam - frameR), (0, wScr))
             y3 = np.interp(y, (frameR, hCam - frameR), (0, hScr))
 
-            # Smooth movement
             clocX = plocX + (x3 - plocX) / smoothening
             clocY = plocY + (y3 - plocY) / smoothening
 
-            # **no more inversion here**
             pyautogui.moveTo(clocX, clocY)
             plocX, plocY = clocX, clocY
 
@@ -148,21 +135,19 @@ while True:
             click_time = time.time()
 
         elif gesture == "fist":
-            # Fist‐hold exit logic (after exit_time seconds)
             if exit_start is None:
                 exit_start = current_time
             elif current_time - exit_start > exit_time:
                 print("👊 Fist held — Exiting!")
                 break
         else:
-            exit_start = None  # Reset if no fist detected
+            exit_start = None
 
     else:
         gesture = None
         gesture_name = None
         gesture_start = None
 
-    # Reset click cooldown
     if click_cooldown and time.time() - click_time > click_cooldown_duration:
         click_cooldown = False
 
